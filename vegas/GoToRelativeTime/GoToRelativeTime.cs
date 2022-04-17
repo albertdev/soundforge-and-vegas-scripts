@@ -15,11 +15,18 @@ public class EntryPoint
     public void FromVegas(Vegas vegas)
     {
         App = vegas;
-        string offsetInput = WaitForInputString("Enter relative time offset:");
+        string offsetInput = WaitForInputString("Enter relative time offset or start with @ for absolute offset:");
 
         if (String.IsNullOrWhiteSpace(offsetInput))
         {
             return;
+        }
+
+        bool absoluteTimeJump = offsetInput.StartsWith("@");
+        if (absoluteTimeJump)
+        {
+            // Chop off '@' sign so further parsing can continue
+            offsetInput = offsetInput.Substring(1);
         }
 
         bool snapToFrames = true;
@@ -40,26 +47,43 @@ public class EntryPoint
             return;
         }
 
-        if (snapToFrames)
+        if (absoluteTimeJump)
         {
-            //double frameDuration = 1.0 / App.Project.Video.FrameRate;
-            long currentFrame = App.Transport.CursorPosition.FrameCount;
-
-            long numFramesToMove =  Timecode.FromNanos(jump.Ticks).FrameCount;
-            if (numFramesToMove == 0)
+            // Jump must be greater or equal than zero
+            jump = jump.Ticks > 0 ? jump : TimeSpan.Zero;
+            if (snapToFrames)
             {
-                numFramesToMove = jump.Ticks > 0 ? 1 : -1;
+                long numFrames =  Timecode.FromNanos(jump.Ticks).FrameCount;
+                App.Transport.CursorPosition = ProjectTimecode.FromFrames(App.Project, numFrames);
             }
-
-            App.Transport.CursorPosition = ProjectTimecode.FromFrames(App.Project, currentFrame + numFramesToMove);
+            else
+            {
+                App.Transport.CursorPosition = ProjectTimecode.FromPositionNanos(App.Project, jump.Ticks);
+            }
         }
         else
         {
-            // Sum it up and clip value so that we don't get a negative offset (because jump can be negative).
-            // Ticks is the same unit as what VEGAS calls "nanos": 100 nanoseconds or 1/10 000 of a millisecond.
-            long currentOffset = App.Transport.CursorPosition.Nanos;
-            long newOffset = Math.Max(0, currentOffset + jump.Ticks);
-            App.Transport.CursorPosition = ProjectTimecode.FromPositionNanos(App.Project, newOffset);
+            if (snapToFrames)
+            {
+                //double frameDuration = 1.0 / App.Project.Video.FrameRate;
+                long currentFrame = App.Transport.CursorPosition.FrameCount;
+
+                long numFramesToMove =  Timecode.FromNanos(jump.Ticks).FrameCount;
+                if (numFramesToMove == 0)
+                {
+                    numFramesToMove = jump.Ticks > 0 ? 1 : -1;
+                }
+
+                App.Transport.CursorPosition = ProjectTimecode.FromFrames(App.Project, currentFrame + numFramesToMove);
+            }
+            else
+            {
+                // Sum it up and clip value so that we don't get a negative offset (because jump can be negative).
+                // Ticks is the same unit as what VEGAS calls "nanos": 100 nanoseconds or 1/10 000 of a millisecond.
+                long currentOffset = App.Transport.CursorPosition.Nanos;
+                long newOffset = Math.Max(0, currentOffset + jump.Ticks);
+                App.Transport.CursorPosition = ProjectTimecode.FromPositionNanos(App.Project, newOffset);
+            }
         }
     }
 

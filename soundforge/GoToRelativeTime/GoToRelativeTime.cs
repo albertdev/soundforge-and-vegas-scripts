@@ -7,7 +7,14 @@ public class EntryPoint
     public void FromSoundForge(IScriptableApp app)
     {
         ForgeApp = app;
-        string offsetInput = SfHelpers.WaitForInputString("Enter relative time offset:");
+        string offsetInput = SfHelpers.WaitForInputString("Enter relative time offset or start with @ for absolute offset:");
+        bool absoluteTimeJump = offsetInput.StartsWith("@");
+        if (absoluteTimeJump)
+        {
+            // Chop off '@' sign so further parsing can continue
+            offsetInput = offsetInput.Substring(1);
+        }
+
         TimeSpan jump;
         try
         {
@@ -20,7 +27,11 @@ public class EntryPoint
         }
 
         long offsetDiff = TimeSpanToSamples(app.ActiveWindow.File.SampleRate, jump);
-        long currentOffset = app.ActiveWindow.Cursor;
+        long currentOffset = 0;
+        if (!absoluteTimeJump)
+        {
+            currentOffset = app.ActiveWindow.Cursor;
+        }
 
         // Sum it up and clip value so that we don't get a negative samples value
         long newOffset = Math.Max(0, currentOffset + offsetDiff);
